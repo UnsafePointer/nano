@@ -2,6 +2,7 @@ import unittest
 
 from memory import Memory
 from memory import MemoryAddressOutOfBoundsException
+from memory import MemoryStackOverflow
 
 class TestMemory(unittest.TestCase):
     def setUp(self):
@@ -48,4 +49,40 @@ class TestMemory(unittest.TestCase):
     def test_branch_when_eval_true(self):
         self.sut.branch(True, 0xff)
         self.assertEqual(self.sut.pc, 0xff)
+
+    def test_split_bytes(self):
+        high, low = self.sut._split_bytes(0xeeff)
+        self.assertEqual(high, 0xee)
+        self.assertEqual(low, 0xff)
+
+    def test_create_16_bit_addr(self):
+        addr = self.sut._create_16_bit_addr(0xee, 0xff)
+        self.assertEqual(addr, 0xeeff)
+
+    def test_stack_overflow(self):
+        self.assertRaises(MemoryStackOverflow, self.sut.pull)
+        for i in xrange(255):
+            self.sut.push(0xff)
+        self.assertRaises(MemoryStackOverflow, self.sut.push, 0xff)
+
+    def test_push_to_stack(self):
+        self.sut.push(0xff)
+        self.sut.push(0xee)
+        self.sut.push(0xdd)
+        self.assertEqual(self.sut.sp, Memory.STACK_ORIGIN - 3)
+        self.assertEqual(self.sut.pull(), 0xdd)
+        self.assertEqual(self.sut.pull(), 0xee)
+        self.assertEqual(self.sut.pull(), 0xff)
+        self.assertEqual(self.sut.sp, Memory.STACK_ORIGIN)
+
+    def test_jsr_rts(self):
+        self.sut.jsr(0xeeff)
+        self.sut.jsr(0xddcc)
+        self.assertEqual(self.sut.pc, 0xddcc)
+
+        self.sut.rts()
+        self.assertEqual(self.sut.pc, 0xeeff)
+
+        self.sut.rts()
+        self.assertEqual(self.sut.pc, Memory.PROGRAM_OFFSET)
 

@@ -1,6 +1,9 @@
 class MemoryAddressOutOfBoundsException(Exception):
     pass
 
+class MemoryStackOverflow(Exception):
+    pass
+
 class Memory(object):
     PROGRAM_OFFSET = 0x0600
     STACK_OFFSET = 0x100
@@ -41,3 +44,42 @@ class Memory(object):
         if not verify:
             return
         self.pc = addr
+
+    def _split_bytes(self, addr): # split 16-bit address values
+        self._validate_address(addr)
+        high = (addr >> 8) & 0xff
+        low = addr & 0xff
+        return (high, low)
+
+    def _create_16_bit_addr(self, high, low):
+        high &= 0xff # values can only be 1 byte
+        low &= 0xff
+        high = (high << 8)
+        return high + low
+
+    def push(self, value):
+        if self.sp - 1 < 0:
+            raise MemoryStackOverflow
+        value &= 0xff # values can only be 1 byte
+        self._store[self.STACK_OFFSET + self.sp] = value
+        self.sp -= 1
+
+    def pull(self):
+        if self.sp + 1 > self.STACK_ORIGIN:
+            raise MemoryStackOverflow
+        self.sp += 1
+        return self._store[self.STACK_OFFSET + self.sp]
+
+    def jsr(self, addr):
+        high, low = self._split_bytes(self.pc)
+        self.push(low)
+        self.push(high)
+
+        self.jump(addr)
+
+    def rts(self):
+        high = self.pull()
+        low = self.pull()
+        addr = self._create_16_bit_addr(high, low)
+
+        self.jump(addr)
